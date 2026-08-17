@@ -1,0 +1,71 @@
+#!/bin/bash
+# One-time setup: make Homebrew usable without a sudo prompt, install the
+# post-boot hook, and enable the bar widget.
+set -euo pipefail
+
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib.sh
+source "$PLUGIN_DIR/scripts/lib.sh"
+
+chmod 755 \
+  "$PLUGIN_DIR/scripts/deny-sudo-askpass" \
+  "$PLUGIN_DIR/scripts/brew-status" \
+  "$PLUGIN_DIR/scripts/brew-upgrade" \
+  "$PLUGIN_DIR/scripts/setup" \
+  "$PLUGIN_DIR/hooks/brew-update"
+
+if ! brew_ready; then
+  echo "Homebrew is not installed (expected /home/linuxbrew/.linuxbrew/bin/brew)." >&2
+  exit 1
+fi
+
+prefix="$(brew_prefix)"
+echo "Homebrew prefix: $prefix"
+
+if ! brew_writable; then
+  echo "Prefix is not writable by $(id -un)."
+  echo "Trying a passwordless chown (sudo -n)…"
+  if sudo -n chown -R "$(id -un):$(id -gn)" "$prefix" 2>/dev/null; then
+    echo "Ownership fixed."
+  else
+    echo "sudo needs a password or is not allowed." >&2
+    echo "Run this once in a terminal, then re-run setup:" >&2
+    echo "  sudo chown -R \"\$(whoami):\" \"$prefix\"" >&2
+    exit 1
+  fi
+fi
+
+if ! brew_writable; then
+  echo "Prefix is still not writable: $prefix" >&2
+  exit 1
+fi
+
+echo "Prefix is writable. Future brew update/upgrade runs will not ask for sudo."
+
+if command -v omarchy >/dev/null 2>&1; then
+  omarchy hook install post-boot "$PLUGIN_DIR/hooks/brew-update"
+else
+  hook_dir="$HOME/.config/omarchy/hooks/post-boot.d"
+  mkdir -p "$hook_dir"
+  cp "$PLUGIN_DIR/hooks/brew-update" "$hook_dir/brew-update"
+  chmod 755 "$hook_dir/brew-update"
+  echo "Installed post-boot hook: $hook_dir/brew-update"
+fi
+
+if command -v omarchy-shell >/dev/null 2>&1; then
+  omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+fi
+
+if command -v omarchy >/dev/null 2>&1; then
+  if omarchy plugin list --json 2>/dev/null | jq -e --arg id "fruffel.brew-update" '.[] | select(.id == $id)' >/dev/null; then
+    omarchy plugin enable fruffel.brew-update --section center --after omarchy.system-update 2>/dev/null \
+      || omarchy plugin enable fruffel.brew-update --section center || true
+  fi
+fi
+
+echo
+echo "Setup complete."
+echo "  • Bar widget: fruffel.brew-update"
+echo "  • Boot hook:  post-boot (quiet brew upgrade)"
+echo "  • Check now:  $PLUGIN_DIR/scripts/brew-status"
+echo "  • Upgrade:    $PLUGIN_DIR/scripts/brew-upgrade"

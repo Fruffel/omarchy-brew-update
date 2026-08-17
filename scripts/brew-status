@@ -1,0 +1,66 @@
+#!/bin/bash
+# Fetch tap metadata and write ~/.local/state/omarchy/brew-update.json.
+set -euo pipefail
+
+# shellcheck source=lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+
+include_casks=1
+greedy=0
+while (($# > 0)); do
+  case "$1" in
+  --no-casks) include_casks=0 ;;
+  --casks) include_casks=1 ;;
+  --greedy) greedy=1 ;;
+  --help | -h)
+    echo "Usage: brew-status [--casks|--no-casks] [--greedy]"
+    exit 0
+    ;;
+  *)
+    echo "Unknown option: $1" >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
+if ! brew_ready; then
+  fail_state "Homebrew is not installed"
+  exit 1
+fi
+
+if ! brew_writable; then
+  fail_state "Homebrew prefix is not writable. Run this plugin's setup script once."
+  exit 1
+fi
+
+if ! try_lock; then
+  # Another check or upgrade is already running; surface the current file.
+  read_state
+  exit 0
+fi
+
+merge_state "$(jq -nc '{checking: true, error: ""}')"
+
+outdated_flags=(--json=v2)
+if ((greedy == 1)); then
+  outdated_flags+=(--greedy)
+fi
+
+update_error=""
+if ! "$BREW" update --quiet >/dev/null 2>&1; then
+  update_error="Could not fetch Homebrew updates"
+fi
+
+if ! raw="$("$BREW" outdated "${outdated_flags[@]}" 2>/dev/null)"; then
+  fail_state "${update_error:-Could not list outdated Homebrew packages}"
+  exit 1
+fi
+
+state="$(parse_outdated "$raw" "$include_casks")"
+if [[ -n $update_error ]]; then
+  state="$(jq -c --arg error "$update_error" '.ok = false | .error = $error' <<<"$state")"
+fi
+
+write_state_file "$state"
+printf '%s\n' "$state"

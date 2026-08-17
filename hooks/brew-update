@@ -1,0 +1,8 @@
+#!/bin/bash
+# Run after the desktop starts. Upgrades Homebrew packages in the background.
+# Installed as a copy under ~/.config/omarchy/hooks/post-boot.d/, so the plugin
+# path is resolved from the well-known user plugin directory, not this file.
+set -euo pipefail
+
+PLUGIN_DIR="${HOME}/.config/omarchy/plugins/fruffel.brew-update"
+exec "$PLUGIN_DIR/scripts/brew-upgrade" --quiet --notify

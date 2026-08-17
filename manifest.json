@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "fruffel.brew-update",
+  "name": "Homebrew update",
+  "version": "1.0.0",
+  "author": "Jeroen",
+  "license": "MIT",
+  "description": "Poll Homebrew for outdated packages, upgrade them from the bar, and run a quiet upgrade when the desktop starts.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "Homebrew update",
+    "description": "Shows pending Homebrew updates and upgrades them without a sudo prompt",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "pollMinutes": 30,
+      "upgradeOnStart": true,
+      "showWhenCurrent": true,
+      "includeCasks": true,
+      "greedyCasks": false
+    },
+    "schema": [
+      {
+        "key": "pollMinutes",
+        "type": "integer",
+        "label": "Poll interval (minutes)",
+        "min": 15,
+        "max": 1440,
+        "step": 15,
+        "defaultValue": 30
+      },
+      {
+        "key": "upgradeOnStart",
+        "type": "boolean",
+        "label": "Upgrade when the shell starts",
+        "defaultValue": true
+      },
+      {
+        "key": "showWhenCurrent",
+        "type": "boolean",
+        "label": "Show icon when Homebrew is current",
+        "defaultValue": true
+      },
+      {
+        "key": "includeCasks",
+        "type": "boolean",
+        "label": "Include casks",
+        "defaultValue": true
+      },
+      {
+        "key": "greedyCasks",
+        "type": "boolean",
+        "label": "Also upgrade auto-updating casks",
+        "defaultValue": false
+      }
+    ]
+  }
+}

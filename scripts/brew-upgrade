@@ -1,0 +1,128 @@
+#!/bin/bash
+# Upgrade outdated Homebrew packages without prompting for sudo.
+set -euo pipefail
+
+# shellcheck source=lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+
+quiet=0
+greedy=0
+include_casks=1
+notify=0
+while (($# > 0)); do
+  case "$1" in
+  --quiet) quiet=1 ;;
+  --greedy) greedy=1 ;;
+  --no-casks) include_casks=0 ;;
+  --casks) include_casks=1 ;;
+  --notify) notify=1 ;;
+  --help | -h)
+    echo "Usage: brew-upgrade [--quiet] [--notify] [--casks|--no-casks] [--greedy]"
+    exit 0
+    ;;
+  *)
+    echo "Unknown option: $1" >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
+notify_send() {
+  local headline=$1
+  local body=${2:-}
+  if command -v omarchy-notification-send >/dev/null 2>&1; then
+    omarchy-notification-send -g $'\U000f1116' --app-name Homebrew "$headline" "$body"
+  elif command -v notify-send >/dev/null 2>&1; then
+    notify-send -a Homebrew "$headline" "$body"
+  fi
+}
+
+if ! brew_ready; then
+  fail_state "Homebrew is not installed"
+  ((notify == 1 || quiet == 1)) && notify_send "Homebrew" "Homebrew is not installed"
+  exit 1
+fi
+
+if ! brew_writable; then
+  fail_state "Homebrew prefix is not writable. Run this plugin's setup script once."
+  ((notify == 1 || quiet == 1)) && notify_send "Homebrew" "Prefix is not writable. Re-run setup."
+  exit 1
+fi
+
+if ! wait_lock; then
+  fail_state "Timed out waiting for another Homebrew job to finish"
+  exit 1
+fi
+
+merge_state "$(jq -nc '{updating: true, checking: false, error: ""}')"
+
+cleanup() {
+  local status=$?
+  if [[ $status -ne 0 ]]; then
+    merge_state "$(jq -nc --argjson checkedAt "$(now_unix)" '{updating: false, checking: false, checkedAt: $checkedAt}')"
+  fi
+}
+trap cleanup EXIT
+
+upgrade_flags=()
+outdated_flags=(--json=v2)
+if ((greedy == 1)); then
+  upgrade_flags+=(--greedy)
+  outdated_flags+=(--greedy)
+fi
+
+if ((quiet == 0)); then
+  echo "Updating Homebrew…"
+fi
+
+update_error=""
+if ! "$BREW" update --quiet; then
+  update_error="Could not fetch Homebrew updates"
+  if ((quiet == 0)); then
+    echo "$update_error" >&2
+  fi
+fi
+
+before_raw="$("$BREW" outdated "${outdated_flags[@]}" 2>/dev/null || echo '{"formulae":[],"casks":[]}')"
+write_state_file "$(parse_outdated "$before_raw" "$include_casks")"
+before_count="$(package_count)"
+
+if ((quiet == 0)); then
+  echo "Upgrading packages…"
+fi
+
+# brew upgrade exits 0 when there is nothing to do.
+if ! "$BREW" upgrade "${upgrade_flags[@]}"; then
+  fail_state "Homebrew upgrade failed"
+  ((notify == 1 || quiet == 1)) && notify_send "Homebrew upgrade failed" "Check the terminal output or run brew upgrade by hand."
+  exit 1
+fi
+
+raw="$("$BREW" outdated "${outdated_flags[@]}" 2>/dev/null || echo '{"formulae":[],"casks":[]}')"
+state="$(parse_outdated "$raw" "$include_casks")"
+if [[ -n $update_error ]]; then
+  state="$(jq -c --arg error "$update_error" '.ok = false | .error = $error' <<<"$state")"
+fi
+write_state_file "$state"
+
+after_count="$(package_count)"
+upgraded=$((before_count > after_count ? before_count - after_count : 0))
+
+if ((quiet == 0)); then
+  if [[ $after_count -eq 0 ]]; then
+    echo "Homebrew is up to date."
+  else
+    echo "$after_count package(s) still outdated (pinned or failed)."
+  fi
+fi
+
+if ((notify == 1 || quiet == 1)); then
+  if [[ $before_count -eq 0 && $after_count -eq 0 ]]; then
+    : # already current — stay quiet on boot
+  elif [[ $after_count -eq 0 ]]; then
+    notify_send "Homebrew updated" "All packages are current."
+  elif [[ $upgraded -gt 0 ]]; then
+    notify_send "Homebrew updated" "$after_count package(s) still pending."
+  fi
+fi

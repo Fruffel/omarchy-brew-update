@@ -1,0 +1,4 @@
+#!/bin/bash
+# Homebrew asked for a password. Refuse instead of hanging a background job.
+echo "Homebrew refused to prompt for a sudo password. Make the linuxbrew prefix writable by your user (see this plugin's setup script)." >&2
+exit 1
