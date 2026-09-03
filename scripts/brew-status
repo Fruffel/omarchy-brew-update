@@ -62,14 +62,20 @@ if [[ -n $update_error ]]; then
   state="$(jq -c --arg error "$update_error" '.ok = false | .error = $error' <<<"$state")"
 fi
 
-# Full installed list (local only). Formulae first, then casks.
+# Full installed list (local only): top-level formulae plus all casks.
+# `brew leaves` names what nothing else depends on; tap formulae come out
+# qualified (user/tap/name) while `brew list` uses short names, so match
+# on the basename. Casks are always top-level by nature.
+leaves_json="$(
+  "$BREW" leaves 2>/dev/null \
+    | jq -c -R -s 'split("\n") | map(select(length > 0) | split("/") | last)' || echo '[]'
+)"
 installed="$(
-  {
-    "$BREW" list --versions 2>/dev/null | jq -c -R -s '
-      split("\n") | map(select(length > 0) | split(" ")
+  "$BREW" list --versions 2>/dev/null | jq -c -R -s --argjson leaves "$leaves_json" '
+    ($leaves | length == 0) as $noLeaves
+    | split("\n") | map(select(length > 0) | split(" ")
       | {name: .[0], installed: (.[1:] | join(" ")), current: "", pinned: false, kind: "formula"}
-      | select(.name != ""))' || echo '[]'
-  }
+      | select(.name != "" and ($noLeaves or (.name as $n | $leaves | index($n)))))' || echo '[]'
 )"
 if ((include_casks == 1)); then
   cask_installed="$(
