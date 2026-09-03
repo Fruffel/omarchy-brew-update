@@ -58,6 +58,7 @@ Panel {
 
   property int spinFrame: 0
   readonly property var spinFrames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+  property bool showInstalled: false
 
   function refresh() {
     if (statusProc.running || quietUpgradeProc.running) return
@@ -265,10 +266,38 @@ Panel {
             }
           }
 
-          PackageSection {
+          Column {
             visible: root.status.installed.length > 0
-            title: "INSTALLED"
-            packages: root.status.installed
+            width: parent.width
+            spacing: Style.space(8)
+
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
+
+              PanelSectionHeader {
+                width: parent.width - toggleInstalledButton.width - parent.spacing
+                anchors.verticalCenter: parent.verticalCenter
+                text: "INSTALLED (" + root.status.installed.length + ")"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+              }
+
+              Button {
+                id: toggleInstalledButton
+                text: root.showInstalled ? "Hide" : "Show"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                bordered: true
+                onClicked: root.showInstalled = !root.showInstalled
+              }
+            }
+
+            PackageSection {
+              visible: root.showInstalled
+              title: ""
+              packages: root.status.installed
+            }
           }
         }
       }
@@ -283,6 +312,7 @@ Panel {
     spacing: Style.space(8)
 
     PanelSectionHeader {
+      visible: title !== ""
       text: title
       foreground: root.contentForeground
       fontFamily: root.contentFontFamily
