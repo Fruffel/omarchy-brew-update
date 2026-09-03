@@ -16,7 +16,8 @@ omarchy plugin add https://github.com/Fruffel/omarchy-brew-update.git --enable
 ## Usage
 
 - The beer icon stays in the bar. A count appears next to it when packages are outdated.
-- Left click opens the package list. **Update all** runs the upgrade in a floating terminal.
+- Left click opens the package list. **Update all** upgrades headlessly in
+  the background and notifies when done (button shows a spinner meanwhile).
 - Middle click upgrades immediately.
 - Right click refreshes the list.
 - Super menu → **Update → Homebrew** also launches the upgrader.

@@ -9,6 +9,7 @@ quiet=0
 greedy=0
 include_casks=1
 notify=0
+report=0
 while (($# > 0)); do
   case "$1" in
   --quiet) quiet=1 ;;
@@ -16,8 +17,9 @@ while (($# > 0)); do
   --no-casks) include_casks=0 ;;
   --casks) include_casks=1 ;;
   --notify) notify=1 ;;
+  --report) report=1 ;;
   --help | -h)
-    echo "Usage: brew-upgrade [--quiet] [--notify] [--casks|--no-casks] [--greedy]"
+    echo "Usage: brew-upgrade [--quiet] [--notify] [--report] [--casks|--no-casks] [--greedy]"
     exit 0
     ;;
   *)
@@ -119,7 +121,10 @@ fi
 
 if ((notify == 1 || quiet == 1)); then
   if [[ $before_count -eq 0 && $after_count -eq 0 ]]; then
-    : # already current — stay quiet on boot
+    if ((report == 1)); then
+      notify_send "Homebrew is up to date." ""
+    fi
+    # Already current — stay quiet on boot (no --report there).
   elif [[ $after_count -eq 0 ]]; then
     notify_send "Homebrew updated" "All packages are current."
   elif [[ $upgraded -gt 0 ]]; then

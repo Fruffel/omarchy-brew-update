@@ -56,6 +56,9 @@ Panel {
     return command.concat(Model.scriptFlags(root.includeCasks, root.greedyCasks))
   }
 
+  property int spinFrame: 0
+  readonly property var spinFrames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
   function refresh() {
     if (statusProc.running || quietUpgradeProc.running) return
     statusProc.command = withFlags(["bash", root.statusScript])
@@ -69,8 +72,9 @@ Panel {
   }
 
   function runUpgrade() {
-    if (!root.bar) return
-    root.bar.run("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote(root.upgradeScript) + " " + Model.scriptFlags(root.includeCasks, root.greedyCasks).join(" "))
+    if (quietUpgradeProc.running) return
+    quietUpgradeProc.command = withFlags(["bash", root.upgradeScript, "--quiet", "--notify", "--report"])
+    quietUpgradeProc.running = true
   }
 
   function handleStartup() {
@@ -114,6 +118,15 @@ Panel {
     onExited: function() {
       stateFile.reload()
     }
+  }
+
+  // Braille spinner frames while an upgrade runs.
+  Timer {
+    id: spinTimer
+    interval: 80
+    running: root.updating
+    repeat: true
+    onTriggered: root.spinFrame = (root.spinFrame + 1) % root.spinFrames.length
   }
 
   // Let the session settle before the first brew process.
@@ -229,12 +242,13 @@ Panel {
             spacing: Style.space(8)
 
             Button {
-              text: "Update all"
-              iconText: Model.icon()
+              text: root.updating ? "Updating" : "Update all"
+              iconText: root.updating ? root.spinFrames[root.spinFrame] : Model.icon()
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               bordered: true
-              enabled: root.count > 0 && !root.updating
+              enabled: root.count > 0 && !root.checking && !root.updating
+              opacity: (root.checking || root.updating) ? 0.45 : 1
               onClicked: root.runUpgrade()
             }
 
@@ -244,6 +258,7 @@ Panel {
               fontFamily: root.contentFontFamily
               bordered: true
               enabled: !root.checking && !root.updating
+              opacity: (root.checking || root.updating) ? 0.45 : 1
               onClicked: root.refresh()
             }
           }
