@@ -216,7 +216,7 @@ Panel {
           }
 
           Text {
-            visible: root.statusError === "" && root.count === 0 && !root.checking && !root.updating
+            visible: root.statusError === "" && root.count === 0 && !root.updating
             width: parent.width
             text: "All Homebrew packages are current."
             color: root.contentDim
