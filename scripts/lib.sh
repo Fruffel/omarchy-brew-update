@@ -144,3 +144,7 @@ wait_lock() {
   exec 9>"$LOCK_FILE"
   flock -w 600 9
 }
+
+release_lock() {
+  exec 9>&- || true
+}

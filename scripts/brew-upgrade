@@ -87,7 +87,9 @@ if ! "$BREW" update --quiet; then
 fi
 
 before_raw="$("$BREW" outdated "${outdated_flags[@]}" 2>/dev/null || echo '{"formulae":[],"casks":[]}')"
-write_state_file "$(parse_outdated "$before_raw" "$include_casks")"
+before_patch="$(parse_outdated "$before_raw" "$include_casks")"
+# Merge, don't replace: keep the installed list and the updating flag.
+write_state_file "$(jq -c --argjson patch "$before_patch" '. * $patch | .updating = true | .checking = false' <<<"$(read_state)")"
 before_count="$(package_count)"
 
 if ((quiet == 0)); then
@@ -102,11 +104,23 @@ if ! "$BREW" upgrade "${upgrade_flags[@]}"; then
 fi
 
 raw="$("$BREW" outdated "${outdated_flags[@]}" 2>/dev/null || echo '{"formulae":[],"casks":[]}')"
-state="$(parse_outdated "$raw" "$include_casks")"
-if [[ -n $update_error ]]; then
-  state="$(jq -c --arg error "$update_error" '.ok = false | .error = $error' <<<"$state")"
+# Refresh through the status script so the installed list survives.
+# The lock fd is inherited across exec, so release it before the child
+# status run takes its own non-blocking lock.
+release_lock
+status_flags=()
+if ((include_casks == 1)); then
+  status_flags+=(--casks)
+else
+  status_flags+=(--no-casks)
 fi
-write_state_file "$state"
+if ((greedy == 1)); then
+  status_flags+=(--greedy)
+fi
+"$SCRIPTS_DIR/brew-status" "${status_flags[@]}" >/dev/null 2>&1 || true
+if [[ -n $update_error ]]; then
+  merge_state "$(jq -nc --arg error "$update_error" '{ok: false, error: $error}')"
+fi
 
 after_count="$(package_count)"
 upgraded=$((before_count > after_count ? before_count - after_count : 0))
