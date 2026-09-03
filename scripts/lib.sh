@@ -43,7 +43,8 @@ empty_state() {
     error: "",
     brewPrefix: "",
     formulae: [],
-    casks: []
+    casks: [],
+    installed: []
   }'
 }
 

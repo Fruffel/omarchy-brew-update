@@ -62,5 +62,25 @@ if [[ -n $update_error ]]; then
   state="$(jq -c --arg error "$update_error" '.ok = false | .error = $error' <<<"$state")"
 fi
 
+# Full installed list (local only). Formulae first, then casks.
+installed="$(
+  {
+    "$BREW" list --versions 2>/dev/null | jq -c -R -s '
+      split("\n") | map(select(length > 0) | split(" ")
+      | {name: .[0], installed: (.[1:] | join(" ")), current: "", pinned: false, kind: "formula"}
+      | select(.name != ""))' || echo '[]'
+  }
+)"
+if ((include_casks == 1)); then
+  cask_installed="$(
+    "$BREW" list --cask --versions 2>/dev/null | jq -c -R -s '
+      split("\n") | map(select(length > 0) | split(" ")
+      | {name: .[0], installed: (.[1:] | join(" ")), current: "", pinned: false, kind: "cask"}
+      | select(.name != ""))' || echo '[]'
+  )"
+  installed="$(jq -nc --argjson a "$installed" --argjson b "$cask_installed" '$a + $b')"
+fi
+state="$(jq -c --argjson installed "$installed" '.installed = $installed' <<<"$state")"
+
 write_state_file "$state"
 printf '%s\n' "$state"

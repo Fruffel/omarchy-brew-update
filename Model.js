@@ -12,7 +12,8 @@ function emptyStatus() {
     error: "",
     brewPrefix: "",
     formulae: [],
-    casks: []
+    casks: [],
+    installed: []
   }
 }
 
@@ -36,6 +37,7 @@ function parseStatus(raw) {
     fallback.brewPrefix = typeof data.brewPrefix === "string" ? data.brewPrefix : ""
     fallback.formulae = asList(data.formulae)
     fallback.casks = asList(data.casks)
+    fallback.installed = asList(data.installed)
     return fallback
   } catch (e) {
     fallback.ok = false

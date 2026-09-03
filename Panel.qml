@@ -264,6 +264,12 @@ Panel {
               onClicked: root.refresh()
             }
           }
+
+          PackageSection {
+            visible: root.status.installed.length > 0
+            title: "INSTALLED"
+            packages: root.status.installed
+          }
         }
       }
     }
