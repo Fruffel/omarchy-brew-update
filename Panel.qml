@@ -120,11 +120,11 @@ Panel {
     }
   }
 
-  // Braille spinner frames while an upgrade runs.
+  // Braille spinner frames while checking or upgrading.
   Timer {
     id: spinTimer
     interval: 80
-    running: root.updating
+    running: root.updating || root.checking
     repeat: true
     onTriggered: root.spinFrame = (root.spinFrame + 1) % root.spinFrames.length
   }
@@ -242,6 +242,7 @@ Panel {
             spacing: Style.space(8)
 
             Button {
+              visible: root.count > 0
               text: root.updating ? "Updating" : "Update all"
               iconText: root.updating ? root.spinFrames[root.spinFrame] : Model.icon()
               foreground: root.contentForeground
@@ -253,7 +254,8 @@ Panel {
             }
 
             Button {
-              text: "Check now"
+              text: root.checking ? "Checking" : "Check now"
+              iconText: root.checking ? root.spinFrames[root.spinFrame] : ""
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               bordered: true
