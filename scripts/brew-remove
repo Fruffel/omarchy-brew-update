@@ -1,0 +1,44 @@
+#!/bin/bash
+# Uninstall one Homebrew formula or cask headlessly.
+# `brew uninstall` never prompts, so this is safe for background use.
+set -euo pipefail
+
+# shellcheck source=lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+
+cask=0
+name=""
+while (($# > 0)); do
+  case "$1" in
+  --cask) cask=1 ;;
+  --help | -h)
+    echo "Usage: brew-remove [--cask] <name>"
+    exit 0
+    ;;
+  --*) echo "Unknown option: $1" >&2; exit 2 ;;
+  *)
+    if [[ -n $name ]]; then
+      echo "Only one package at a time" >&2
+      exit 2
+    fi
+    name="$1"
+    ;;
+  esac
+  shift
+done
+
+if [[ -z $name ]]; then
+  echo "Usage: brew-remove [--cask] <name>" >&2
+  exit 2
+fi
+
+if ! brew_ready; then
+  echo "Homebrew is not installed" >&2
+  exit 1
+fi
+
+if ((cask == 1)); then
+  exec "$BREW" uninstall --cask "$name"
+else
+  exec "$BREW" uninstall "$name"
+fi

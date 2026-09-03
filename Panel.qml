@@ -40,6 +40,7 @@ Panel {
   readonly property string pluginDir: String(Qt.resolvedUrl(".")).replace(/^file:\/\//, "").replace(/\/$/, "")
   readonly property string statusScript: pluginDir + "/scripts/brew-status"
   readonly property string upgradeScript: pluginDir + "/scripts/brew-upgrade"
+  readonly property string removeScript: pluginDir + "/scripts/brew-remove"
   readonly property string statePath: Quickshell.env("HOME") + "/.local/state/omarchy/brew-update.json"
 
   function switchPanel(direction) {
@@ -59,6 +60,8 @@ Panel {
   property int spinFrame: 0
   readonly property var spinFrames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
   property bool showInstalled: false
+  property string pendingRemove: ""
+  readonly property bool removing: removeProc.running
 
   function refresh() {
     if (statusProc.running || quietUpgradeProc.running) return
@@ -76,6 +79,21 @@ Panel {
     if (quietUpgradeProc.running) return
     quietUpgradeProc.command = withFlags(["bash", root.upgradeScript, "--quiet", "--notify", "--report"])
     quietUpgradeProc.running = true
+  }
+
+  function removeApp(entry) {
+    var name = String((entry && entry.name) || "").trim()
+    if (name === "" || removeProc.running) return
+    pendingRemove = name
+    var args = ["bash", root.removeScript, name]
+    if (entry && entry.kind === "cask") args.push("--cask")
+    removeProc.command = args
+    removeProc.running = true
+  }
+
+  function notify(head, body) {
+    notifyProc.command = ["omarchy-notification-send", "-g", Model.icon(), "--app-name", "Homebrew", String(head || ""), String(body || "")]
+    notifyProc.running = true
   }
 
   function handleStartup() {
@@ -119,6 +137,24 @@ Panel {
     onExited: function() {
       stateFile.reload()
     }
+  }
+
+  Process {
+    id: removeProc
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      var label = root.pendingRemove !== "" ? root.pendingRemove : "Package"
+      root.pendingRemove = ""
+      if (exitCode === 0) root.notify(label + " removed", "")
+      else root.notify(label + " could not be removed", "Run brew uninstall by hand to see why.")
+      root.refresh()
+    }
+  }
+
+  Process {
+    id: notifyProc
+    stdout: StdioCollector { waitForEnd: true }
   }
 
   // Braille spinner frames while checking or upgrading.
@@ -249,8 +285,8 @@ Panel {
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               bordered: true
-              enabled: root.count > 0 && !root.checking && !root.updating
-              opacity: (root.checking || root.updating) ? 0.45 : 1
+              enabled: root.count > 0 && !root.checking && !root.updating && !root.removing
+              opacity: (root.checking || root.updating || root.removing) ? 0.45 : 1
               onClicked: root.runUpgrade()
             }
 
@@ -260,8 +296,8 @@ Panel {
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               bordered: true
-              enabled: !root.checking && !root.updating
-              opacity: (root.checking || root.updating) ? 0.45 : 1
+              enabled: !root.checking && !root.updating && !root.removing
+              opacity: (root.checking || root.updating || root.removing) ? 0.45 : 1
               onClicked: root.refresh()
             }
           }
@@ -297,6 +333,7 @@ Panel {
               visible: root.showInstalled
               title: ""
               packages: root.status.installed
+              showRemove: true
             }
           }
         }
@@ -305,8 +342,10 @@ Panel {
   }
 
   component PackageSection: Column {
+    id: sectionRoot
     property string title: ""
     property var packages: []
+    property bool showRemove: false
 
     width: parent ? parent.width : implicitWidth
     spacing: Style.space(8)
@@ -322,9 +361,18 @@ Panel {
       model: packages
 
       delegate: Item {
+        id: entryRow
         required property var modelData
+        property bool armed: false
         width: parent ? parent.width : 0
         implicitHeight: row.implicitHeight
+
+        Timer {
+          id: disarmTimer
+          interval: 3000
+          repeat: false
+          onTriggered: entryRow.armed = false
+        }
 
         Row {
           id: row
@@ -332,7 +380,9 @@ Panel {
           spacing: Style.space(8)
 
           Text {
-            width: Math.max(80, parent.width * 0.42)
+            id: nameText
+            width: Math.max(60, parent.width * 0.42)
+            anchors.verticalCenter: parent.verticalCenter
             text: String(modelData.name || "")
             color: root.contentForeground
             font.family: root.contentFontFamily
@@ -341,13 +391,34 @@ Panel {
           }
 
           Text {
-            width: Math.max(80, parent.width - parent.children[0].width - Style.space(8))
+            width: Math.max(60, parent.width - nameText.width - (sectionRoot.showRemove ? removeButton.width + Style.space(8) : 0) - Style.space(8))
+            anchors.verticalCenter: parent.verticalCenter
             text: Model.versionLine(modelData) + (modelData.pinned ? " (pinned)" : "")
             color: root.contentDim
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.bodySmall
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignRight
+          }
+
+          Button {
+            id: removeButton
+            visible: sectionRoot.showRemove
+            text: entryRow.armed ? "Sure?" : "Remove"
+            foreground: entryRow.armed ? root.contentUrgent : root.contentForeground
+            fontFamily: root.contentFontFamily
+            bordered: true
+            enabled: !root.checking && !root.updating && !root.removing
+            opacity: (root.checking || root.updating || root.removing) ? 0.45 : 1
+            onClicked: {
+              if (entryRow.armed) {
+                entryRow.armed = false
+                root.removeApp(modelData)
+              } else {
+                entryRow.armed = true
+                disarmTimer.restart()
+              }
+            }
           }
         }
       }
