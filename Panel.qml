@@ -191,7 +191,7 @@ Panel {
           PanelHero {
             width: parent.width
             title: "Homebrew"
-            meta: root.checking ? "Checking…" : (root.updating ? "Upgrading…" : Model.formatCheckedAt(root.status.checkedAt))
+            meta: Model.formatCheckedAt(root.status.checkedAt)
             detail: root.count > 0 ? (root.count + (root.count === 1 ? " update" : " updates")) : (root.statusError !== "" ? "Error" : "Current")
             foreground: root.contentForeground
             fontFamily: root.contentFontFamily
