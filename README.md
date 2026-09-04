@@ -36,6 +36,7 @@ Values live on the bar entry in `~/.config/omarchy/shell.json`:
 | `showWhenCurrent` | `true` | Keep the icon visible when everything is current |
 | `includeCasks` | `true` | Include Homebrew casks |
 | `greedyCasks` | `false` | Also upgrade auto-updating casks |
+| `notifications` | `false` | Send desktop notifications (`omarchy bar set fruffel.brew-update notifications true` to opt in) |
 
 ```sh
 omarchy bar set fruffel.brew-update pollMinutes 15

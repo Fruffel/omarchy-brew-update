@@ -3,6 +3,7 @@
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPTS_DIR="$PLUGIN_DIR/scripts"
+PLUGIN_ID="$(basename "$PLUGIN_DIR")"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 STATE_FILE="$STATE_DIR/brew-update.json"
 LOCK_FILE="$STATE_DIR/brew-update.lock"
@@ -29,6 +30,23 @@ else
 fi
 
 mkdir -p "$STATE_DIR"
+
+# Desktop notifications for these plugins default to off; opt in per
+# widget with: omarchy bar set <id> notifications true
+# (NOTIFICATIONS=1 forces them on, =0 forces them off, e.g. for testing.)
+notifications_enabled() {
+  case "${NOTIFICATIONS:-}" in
+  1|true|yes|on) return 0 ;;
+  0|false|no|off) return 1 ;;
+  esac
+  local cfg="$HOME/.config/omarchy/shell.json"
+  local val
+  val="$(jq -r --arg id "$PLUGIN_ID" '
+    [.bar.layout.left[]?, .bar.layout.center[]?, .bar.layout.right[]?]
+    | map(select(.id == $id)) | .[0].notifications // empty
+  ' "$cfg" 2>/dev/null)" || return 1
+  [[ $val == "true" ]]
+}
 
 now_unix() {
   date +%s

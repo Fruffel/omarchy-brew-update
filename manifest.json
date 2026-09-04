@@ -19,7 +19,8 @@
       "upgradeOnStart": true,
       "showWhenCurrent": true,
       "includeCasks": true,
-      "greedyCasks": false
+      "greedyCasks": false,
+      "notifications": false
     },
     "schema": [
       {
@@ -53,6 +54,12 @@
         "key": "greedyCasks",
         "type": "boolean",
         "label": "Also upgrade auto-updating casks",
+        "defaultValue": false
+      },
+      {
+        "key": "notifications",
+        "type": "boolean",
+        "label": "Send desktop notifications",
         "defaultValue": false
       }
     ]

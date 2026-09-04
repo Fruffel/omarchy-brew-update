@@ -31,6 +31,7 @@ while (($# > 0)); do
 done
 
 notify_send() {
+  notifications_enabled || return 0
   local headline=$1
   local body=${2:-}
   if command -v omarchy-notification-send >/dev/null 2>&1; then
